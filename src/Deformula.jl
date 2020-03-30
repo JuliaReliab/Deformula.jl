@@ -1,5 +1,5 @@
 module Deformula
 
-greet() = print("Hello World!")
+include("_Deformula.jl")
 
-end # module
+end
