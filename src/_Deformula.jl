@@ -19,7 +19,7 @@ const deformulaMinusOneToOne = Formula(
     t -> pi * cosh(t) * (1 / cosh(pi * sinh(t) / 2)) * (1 / cosh(pi * sinh(t) / 2)) / 2
 )
 
-function calcWeight!(data::Vector{Tuple{T,T,T}}, t::T, f, phi, phidash; abstol::T = eps(T)) where {T <: Real}
+function _calcWeight!(data::Vector{Tuple{T,T,T}}, t::T, f, phi, phidash; abstol::T = eps(T)) where {T <: Real}
     local xtmp::T = phi(t)
     local wtmp::T = phidash(t) * f(xtmp)
     if !isnan(wtmp) && wtmp > abstol
@@ -30,6 +30,25 @@ function calcWeight!(data::Vector{Tuple{T,T,T}}, t::T, f, phi, phidash; abstol::
     end
 end
 
+"""
+deint(f, formula; reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 31)
+
+Compute the numerical integration for f with double exponential formula.
+
+Parameters:
+- f: integrand function
+- formula: double expoential formula. 
+- reltol: tolerance for relative errors
+- abstol: tolerance for absolute errors
+- d: the initial number of divides
+- maxiter: the maximum number of iterations to increase the number of divides twice.
+Return value (tuple):
+- the value of integration
+- a sequence for divides on the transformed domain
+- a sequence for divides; t_i
+- a sequence of weights; w_i
+"""
+
 function deint(f, formula::Formula{T};
         reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 31) where {T <: Real}
     local lower::T = formula.range[1]
@@ -38,7 +57,7 @@ function deint(f, formula::Formula{T};
 
     data = Vector{Tuple{T,T,T}}()
     for t = LinRange(lower, upper, d+1)
-        calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
+        _calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
     end
     local s::T = sum([x[3] for x in data]) * h
     
@@ -51,7 +70,7 @@ function deint(f, formula::Formula{T};
         end
         h /= 2
         for t = LinRange(lower+h, upper-h, d)
-            calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
+            _calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
         end
         d *= 2
         s = sum([x[3] for x in data]) * h
@@ -62,5 +81,5 @@ function deint(f, formula::Formula{T};
         end
     end
     sort!(data, by=first)
-    (s, map(x->x[1], data), map(x->x[2], data), map(x->x[3], data))
+    (s, map(x->x[1], data), map(x->x[2], data), map(x->x[3], data) .* h)
 end
