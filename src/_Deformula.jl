@@ -35,6 +35,8 @@ deint(f, formula; reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 31)
 
 Compute the numerical integration for f with double exponential formula.
 
+    int f(x) dx = h * sum w_i
+
 Parameters:
 - f: integrand function
 - formula: double expoential formula. 
@@ -46,7 +48,8 @@ Return value (tuple):
 - the value of integration
 - a sequence for divides on the transformed domain
 - a sequence for divides; t_i
-- a sequence of weights; w_i
+- a sequence of weights (unscaled); w_i
+- a scale parameter for w_i; h
 """
 
 function deint(f, formula::Formula{T};
@@ -81,5 +84,5 @@ function deint(f, formula::Formula{T};
         end
     end
     sort!(data, by=first)
-    (s, map(x->x[1], data), map(x->x[2], data), map(x->x[3], data) .* h)
+    (s, map(x->x[1], data), map(x->x[2], data), map(x->x[3], data), h)
 end

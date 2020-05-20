@@ -17,5 +17,5 @@ end
     result = deint(deformulaZeroToInf) do x
         0.5*x^-0.5*exp(-x^0.5)
     end
-    @test sum(result[4]) ≈ 1.0
+    @test sum(result[4]) * result[5] ≈ 1.0
 end
