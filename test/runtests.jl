@@ -1,21 +1,48 @@
-using Deformula
+import Deformula: _deint, deformulaZeroToInf, deformulaMinusOneToOne, deint
 using Test
 
 @testset "Deformula.jl" begin
-    result = deint(deformulaZeroToInf) do x
+    result = _deint(deformulaZeroToInf) do x
         0.5*x^-0.5*exp(-x^0.5)
     end
-    @test result[1] ≈ 1.0
-    result = deint(deformulaMinusOneToOne) do x
+    @test result.s ≈ 1.0
+    result = _deint(deformulaMinusOneToOne) do x
         y = x + 1
         0.5*y^-0.5*exp(-y^0.5)
     end
-    @test result[1] ≈ 0.7568830631028768
+    @test result.s ≈ 0.7568830631028768
 end
 
 @testset "Deformula2" begin
-    result = deint(deformulaZeroToInf) do x
+    result = _deint(deformulaZeroToInf) do x
         0.5*x^-0.5*exp(-x^0.5)
     end
-    @test sum(result[4]) * result[5] ≈ 1.0
+    @test sum(result.w) * result.h ≈ 1.0
+end
+
+@testset "Deformula3" begin
+    result = deint(0.0, Inf64) do x
+        0.5*x^-0.5*exp(-x^0.5)
+    end
+    @test sum(result.w) * result.h ≈ 1.0
+end
+
+@testset "Deformula4" begin
+    result = deint(0.0, 10.0) do x
+        if 0 <= x <= 10
+            1
+        else
+            0
+        end
+    end
+    println(result.x)
+    @test result.s ≈ 10.0
+end
+
+@testset "Deformula5" begin
+    result = deint(1.0, Inf64) do x
+        1.0/sqrt(2.0*pi) * exp(-(x - 1.0)^2/2.0)
+    end
+    println(result.x)
+    @test result.s ≈ 0.5
 end
