@@ -30,7 +30,7 @@ end
 function _calcWeight!(data::Vector{Tuple{T,T,T}}, t::T, f, phi, phidash; abstol::T = eps(T)) where {T <: Real}
     local xtmp::T = phi(t)
     local wtmp::T = phidash(t) * f(xtmp)
-    if !isnan(wtmp) && wtmp > abstol
+    if !isnan(wtmp) && abs(wtmp) > abstol
         if !isfinite(wtmp)
             error("Error: weight becomes NaN")
         end

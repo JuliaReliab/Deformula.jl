@@ -46,3 +46,12 @@ end
     println(result.x)
     @test result.s ≈ 0.5
 end
+
+@testset "Deformula6" begin
+    dfm(x; m, lambda) = lambda * x^(m-1)* exp(-lambda * x^m) + lambda * m * x^(m-1) * log(x) * exp(-lambda * x^m) + lambda * m * x^(m-1) * exp(-lambda * x^m) * (-lambda * x^m * log(x))
+    result = deint(0.0, Inf64) do x
+        dfm(x, m=2.0, lambda=1.0)
+    end
+    println(result.s)
+    # @test result.s ≈ 0.5
+end
