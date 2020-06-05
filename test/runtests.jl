@@ -52,6 +52,7 @@ end
     result = deint(0.0, Inf64) do x
         dfm(x, m=2.0, lambda=1.0)
     end
+    println(length(result.x))
     println(result.s)
     # @test result.s ≈ 0.5
 end

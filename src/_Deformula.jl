@@ -61,7 +61,7 @@ Return value (tuple):
 """
 
 function _deint(f, formula::Formula{T};
-        reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 16) where {T <: Real}
+        reltol::T = 1.0e-9, abstol::T = eps(T), d = 8, maxiter = 16) where {T <: Real}
     local lower::T = formula.range[1]
     local upper::T = formula.range[2]
     local h::T = (upper - lower) / d
@@ -75,10 +75,9 @@ function _deint(f, formula::Formula{T};
     local iter = 1
     while true
         iter += 1
-        prev = s
+        prev = s + 1.0
         if iter > maxiter
-            println("Warning: The number of iteration attains maxtier")
-            break
+            error("Warning: The number of iteration attains maxtier $(maxiter)")
         end
         h /= 2
         for t = LinRange(lower+h, upper-h, d)
@@ -86,7 +85,7 @@ function _deint(f, formula::Formula{T};
         end
         d *= 2
         s = sum([x[3] for x in data]) * h
-        aerror = s - prev
+        aerror = s + 1.0 - prev
         rerror = aerror / prev
         if abs(rerror) < reltol
             break
