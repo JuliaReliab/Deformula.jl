@@ -110,12 +110,12 @@ Parameters:
 - abstol: tolerance for absolute errors
 - d: the initial number of divides
 - maxiter: the maximum number of iterations to increase the number of divides twice.
-Return value (tuple):
-- the value of integration
-- a sequence for divides on the transformed domain
-- a sequence for divides; t_i
-- a sequence of weights (unscaled); w_i
-- a scale parameter for w_i; h
+Return value:
+- s: the value of integration
+- t: a sequence for divides on the transformed domain
+- x: a sequence for divides; t_i
+- w: a sequence of weights (unscaled); w_i
+- h: a scale parameter for w_i; h
 """
 
 function deint(f, lower::Float64, upper::Float64;
