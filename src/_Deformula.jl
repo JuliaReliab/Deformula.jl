@@ -19,13 +19,13 @@ const deformulaMinusOneToOne = Formula(
     t -> pi * cosh(t) * (1 / cosh(pi * sinh(t) / 2)) * (1 / cosh(pi * sinh(t) / 2)) / 2
 )
 
-struct DeformulaResult{T <: Real}
-    s::T
-    t::Vector{T}
-    x::Vector{T}
-    w::Vector{T}
-    h::T
-end
+# struct DeformulaResult{T <: Real}
+#     s::T
+#     t::Vector{T}
+#     x::Vector{T}
+#     w::Vector{T}
+#     h::T
+# end
 
 function _calcWeight!(data::Vector{Tuple{T,T,T}}, t::T, f, phi, phidash; abstol::T = eps(T)) where {T <: Real}
     local xtmp::T = phi(t)
@@ -92,34 +92,47 @@ function _deint(f, formula::Formula{T};
         end
     end
     sort!(data, by=first)
-    DeformulaResult(s, map(x->x[1], data), map(x->x[2], data), map(x->x[3], data), h)
+    (s=s, t=map(x->x[1], data), x=map(x->x[2], data), w=map(x->x[3], data), h=h)
 end
 
 """
-deint(f, lower, upper; reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 16)
+    deint(f, lower::Float64, upper::Float64;
+        reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=16)
 
-Compute the numerical integration for f on [lower, upper] with double exponential formula.
+Compute the numerical integration for `f` on [`lower`, `upper`] with double exponential formula.
 
     int f(x) dx = h * sum w_i
 
-Parameters:
-- f: integrand function
-- lower: lower value of range. This should be finite.
-- upper: upper value of range. This is allowed to take infinite.
-- reltol: tolerance for relative errors
-- abstol: tolerance for absolute errors
-- d: the initial number of divides
-- maxiter: the maximum number of iterations to increase the number of divides twice.
-Return value:
-- s: the value of integration
-- t: a sequence for divides on the transformed domain
-- x: a sequence for divides; t_i
-- w: a sequence of weights (unscaled); w_i
-- h: a scale parameter for w_i; h
-"""
+# Arguments
+  - `f`: integrand function
+  - `lower::Float64`: lower value of range. This should be finite.
+  - `upper::Float64`: upper value of range. This is allowed to take infinite.
+  - `reltol::Float64=1.0e-8`: tolerance for relative errors
+  - `abstol::Float64=eps(Float64)`: tolerance for absolute errors
+  - `d=8`: the initial number of divides
+  - `maxiter=16`: the maximum number of iterations to increase the number of divides twice.
 
+# Return values
+  - `s`: the value of integration
+  - `t`: a sequence for divides on the transformed domain
+  - `x`: a sequence for divides; t_i
+  - `w`: a sequence of weights (unscaled); w_i
+  - `h`: a scale parameter for w_i; h
+
+# Examples
+```julia-repl
+julia> f(x) = exp(x);
+julia> result = deint(f, 0.0, 1.0);
+```
+
+```julia-repl
+julia> result = deint(0.0, Inf64) do x
+    2.0*exp(-2.0*x)
+end
+```
+"""
 function deint(f, lower::Float64, upper::Float64;
-    reltol::Float64 = 1.0e-8, abstol::Float64 = eps(Float64), d = 8, maxiter = 16)
+    reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=16)::NamedTuple{(:s, :t, :x, :w, :h), Tuple{Float64, Vector{Float64}, Vector{Float64}, Vector{Float64}, Float64}}
     if lower == 0.0 && upper == Inf64
         _deint(f, deformulaZeroToInf, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
     elseif lower != 0.0
@@ -127,7 +140,7 @@ function deint(f, lower::Float64, upper::Float64;
             f(x + lower)
         end
         x = result.x .+ lower
-        DeformulaResult(result.s, result.t, x, result.w, result.h)
+        (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
     elseif lower == -1.0 && upper == 1.0
         _deint(f, deformulaMinusOneToOne, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
     elseif upper != Inf64
@@ -136,7 +149,7 @@ function deint(f, lower::Float64, upper::Float64;
             f(d*(x + 1) + lower) * d
         end
         x = ((upper - lower)/2) .* (result.x .+ 1.0) .+ lower
-        DeformulaResult(result.s, result.t, x, result.w, result.h)
+        (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
     else
         error("lower and upper should be finite or semi-infinite.")
     end
