@@ -1,6 +1,7 @@
 # Deformula.jl
 
 [![CI](https://github.com/JuliaReliab/Deformula.jl/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/JuliaReliab/Deformula.jl/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/JuliaReliab/Deformula.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaReliab/Deformula.jl)
 
 Fast, robust numerical integration on finite and semi-infinite intervals using the Double Exponential (tanh–sinh) quadrature.
 
