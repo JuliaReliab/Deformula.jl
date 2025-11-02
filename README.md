@@ -1,64 +1,93 @@
-# Deformula
+# Deformula.jl
 
-[![Build Status](https://travis-ci.com/okamumu/Deformula.jl.svg?branch=master)](https://travis-ci.com/okamumu/Deformula.jl)
-[![Codecov](https://codecov.io/gh/okamumu/Deformula.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/okamumu/Deformula.jl)
-[![Coveralls](https://coveralls.io/repos/github/okamumu/Deformula.jl/badge.svg?branch=master)](https://coveralls.io/github/okamumu/Deformula.jl?branch=master)
+[![CI](https://github.com/JuliaReliab/Deformula.jl/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/JuliaReliab/Deformula.jl/actions/workflows/ci.yml)
 
-Deformula.jl provides numerical quadrature of functions of one variable over a finite or infinite interval with double exponential formulas.
+Fast, robust numerical integration on finite and semi-infinite intervals using the Double Exponential (tanh–sinh) quadrature.
+
+Deformula.jl provides a simple, allocation‑light API to integrate 1‑D functions with good accuracy for smooth and rapidly decaying integrands.
 
 ## Installation
 
-This is not in the official Julia package yet. Please run the following command to install it.
-```
-using Pkg; Pkg.add(PackageSpec(url="https://github.com/JuliaReliab/Deformula.jl.git"))
+Once registered in the General registry:
+
+```julia
+using Pkg
+Pkg.add("Deformula")
 ```
 
-## Load module
+Until then, you can install from GitHub:
 
-Load the module:
+```julia
+using Pkg
+Pkg.add(url = "https://github.com/JuliaReliab/Deformula.jl.git")
 ```
+
+## Quick start
+
+```julia
 using Deformula
+
+# Integrate e^{-x} on [0, ∞)
+res = deint(x -> exp(-x), 0.0, Inf64)
+@show res.s           # integral value
+@show res.h * sum(res.w)  # scaled weights (sanity check)
+
+# Integrate on a finite interval [a,b]
+a, b = -2.5, 3.7
+res2 = deint(x -> 1.0, a, b)
+@show res2.s  # ≈ b - a
 ```
 
-## How to use
-
-The package provides a function `deint` to obtain numerical quadrature.
+## API
 
 ```julia
-deint(f, lower, upper; reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 16)
+deint(f, lower::Float64, upper::Float64;
+      reltol::Float64 = 1.0e-8,
+      abstol::Float64 = eps(Float64),
+      d::Int = 8,
+      maxiter::Int = 16)
 ```
 
-This function computes the numerical integration for `f` on `[lower, upper]` with double exponential formula.
+Computes
 
 $$
-\int f(x) dx \approx h * \sum_i w_i
+\int_{lower}^{upper} f(x)\,dx \;\approx\; h\,\sum_i w_i
 $$
 
-- Parameters:
-    - f: integrand function
-    - lower: lower value of range. This should be finite.
-    - upper: upper value of range. This is allowed to take infinite.
-    - reltol: tolerance for relative errors
-    - abstol: tolerance for absolute errors
-    - d: the initial number of divides. The default is `d=8`
-    - maxiter: the maximum number of iterations to increase the number of divides twice.
-- Return value:
-    - s: the value of integration
-    - t: a sequence for divides on the transformed domain
-    - x: a sequence for divides; t_i
-    - w: a sequence of weights (unscaled); w_i
-    - h: a scale parameter for w_i; h
+Return value is a named tuple `(s, t, x, w, h)`:
 
-## Example
+- `s`: integral estimate
+- `t`: nodes in the transformed domain
+- `x`: nodes in the original domain
+- `w`: unscaled weights
+- `h`: scale for weights (so that `h*sum(w) ≈ s`)
 
-Obtain the numerical quadrature of $f(x) = e^{-x}$ on $[0, \infty)$. 
+Notes:
+
+- Convergence uses combined absolute/relative checks. Increase `maxiter` or `d` if you need tighter accuracy.
+- On reaching `maxiter` before convergence, a warning is emitted and the last estimate is returned.
+
+### Exported symbols
+
+- `deint` — high‑level integration API
+- `deformulaZeroToInf`, `deformulaMinusOneToOne` — prebuilt DE mappings (advanced use)
+
+## Compatibility
+
+- Julia 1.x (see `Project.toml` for details)
+
+## Development
+
+- Run tests:
 
 ```julia
-result = deint(x -> exp(-x), 0.0, Inf) ## lower and upper should be Float64.
-println(result.s)
-println(result.h * sum(result.w))
+using Pkg
+Pkg.activate(".")
+Pkg.test()
 ```
 
-## Note
+Contributions are welcome. Please open an issue or pull request.
 
-We use the integartion with semi-infinite interval and finite interval.
+## License
+
+This project is licensed under the terms of the LICENSE file included in this repository.

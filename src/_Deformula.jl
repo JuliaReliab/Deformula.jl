@@ -16,7 +16,11 @@ const deformulaZeroToInf = Formula(
 const deformulaMinusOneToOne = Formula(
     (-3.0, 3.0),
     t -> tanh(pi * sinh(t) / 2),
-    t -> pi * cosh(t) * (1 / cosh(pi * sinh(t) / 2)) * (1 / cosh(pi * sinh(t) / 2)) / 2
+    t -> begin
+        pisinh2 = pi * sinh(t) / 2
+        sech = 1 / cosh(pisinh2)
+        pi * cosh(t) * sech * sech / 2
+    end
 )
 
 # struct DeformulaResult{T <: Real}
@@ -66,33 +70,64 @@ function _deint(f, formula::Formula{T};
     local upper::T = formula.range[2]
     local h::T = (upper - lower) / d
 
+    # Pre-allocate with estimated size to reduce reallocations
     data = Vector{Tuple{T,T,T}}()
+    sizehint!(data, d * maxiter)
+    
     for t = LinRange(lower, upper, d+1)
         _calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
     end
-    local s::T = sum([x[3] for x in data]) * h
+    
+    # Compute sum directly without intermediate array
+    local s::T = zero(T)
+    for item in data
+        s += item[3]
+    end
+    s *= h
     
     local iter = 1
+    local prev::T = s
     while true
         iter += 1
-        prev = s + 1.0
         if iter > maxiter
-            error("Warning: The number of iteration attains maxtier $(maxiter)")
+            @warn "Max iterations reached in _deint; returning last estimate" maxiter=maxiter s=s h=h d=d
+            break
         end
         h /= 2
         for t = LinRange(lower+h, upper-h, d)
             _calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
         end
         d *= 2
-        s = sum([x[3] for x in data]) * h
-        aerror = s + 1.0 - prev
-        rerror = aerror / prev
-        if abs(rerror) < reltol
+        
+        # Compute sum directly
+        s = zero(T)
+        for item in data
+            s += item[3]
+        end
+        s *= h
+        
+        aerror = abs(s - prev)
+        denom = max(abs(prev), one(T))
+        rerror = aerror / denom
+        if (aerror <= abstol) || (rerror <= reltol)
             break
         end
+        prev = s
     end
     sort!(data, by=first)
-    (s=s, t=map(x->x[1], data), x=map(x->x[2], data), w=map(x->x[3], data), h=h)
+    
+    # Pre-allocate output vectors
+    n = length(data)
+    t_vec = Vector{T}(undef, n)
+    x_vec = Vector{T}(undef, n)
+    w_vec = Vector{T}(undef, n)
+    @inbounds for i in 1:n
+        t_vec[i] = data[i][1]
+        x_vec[i] = data[i][2]
+        w_vec[i] = data[i][3]
+    end
+    
+    (s=s, t=t_vec, x=x_vec, w=w_vec, h=h)
 end
 
 """
@@ -133,24 +168,32 @@ end
 """
 function deint(f, lower::Float64, upper::Float64;
     reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=16)::NamedTuple{(:s, :t, :x, :w, :h), Tuple{Float64, Vector{Float64}, Vector{Float64}, Vector{Float64}, Float64}}
-    if lower == 0.0 && upper == Inf64
-        _deint(f, deformulaZeroToInf, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
-    elseif lower != 0.0
-        result = _deint(deformulaZeroToInf, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter) do x
-            f(x + lower)
+    
+    if isinf(upper) && upper > 0
+        # Handle [0, Inf) or [lower, Inf) cases
+        if lower == 0.0
+            return _deint(f, deformulaZeroToInf, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
+        else
+            result = _deint(deformulaZeroToInf, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter) do x
+                f(x + lower)
+            end
+            # Use broadcasting for efficiency
+            x = result.x .+ lower
+            return (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
         end
-        x = result.x .+ lower
-        (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
-    elseif lower == -1.0 && upper == 1.0
-        _deint(f, deformulaMinusOneToOne, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
-    elseif upper != Inf64
-        result = _deint(deformulaMinusOneToOne, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter) do x
-            d = (upper - lower)/2
-            f(d*(x + 1) + lower) * d
-        end
-        x = ((upper - lower)/2) .* (result.x .+ 1.0) .+ lower
-        (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
     else
-        error("lower and upper should be finite or semi-infinite.")
+        # Handle finite interval cases
+        if lower == -1.0 && upper == 1.0
+            return _deint(f, deformulaMinusOneToOne, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
+        else
+            # General finite interval
+            d_half = (upper - lower) / 2
+            result = _deint(deformulaMinusOneToOne, reltol=reltol, abstol=abstol, d=d, maxiter=maxiter) do x
+                f(d_half * (x + 1) + lower) * d_half
+            end
+            # Use broadcasting and fused operations for efficiency
+            x = @. d_half * (result.x + 1.0) + lower
+            return (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
+        end
     end
 end
