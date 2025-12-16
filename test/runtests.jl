@@ -1,7 +1,7 @@
-import Deformula: _deint, deformulaZeroToInf, deformulaMinusOneToOne, deint
+import DEQuadrature: _deint, deformulaZeroToInf, deformulaMinusOneToOne, deint
 using Test
 
-@testset "Deformula.jl" begin
+@testset "DEQuadrature.jl" begin
     result = _deint(deformulaZeroToInf) do x
         0.5*x^-0.5*exp(-x^0.5)
     end
@@ -57,6 +57,27 @@ end
     end
     @test result.s ≈ (b - a) atol=1e-8 rtol=1e-8
     @test issorted(result.t)
+end
+
+@testset "BigFloatSemiInfinite" begin
+    setprecision(256) do
+        result = deint(BigFloat(0), BigFloat(Inf); reltol=BigFloat(1e-20)) do x
+            exp(-x)
+        end
+        @test result.s ≈ BigFloat(1) rtol=BigFloat(1e-18)
+    end
+end
+
+@testset "BigFloatFiniteInterval" begin
+    setprecision(256) do
+        a = BigFloat(-2)
+        b = BigFloat(3)
+        result = deint(a, b; reltol=BigFloat(1e-20)) do x
+            one(BigFloat)
+        end
+        @test result.s ≈ (b - a) rtol=BigFloat(1e-12)
+        @test issorted(result.t)
+    end
 end
 
 @testset "MaxIterWarning" begin

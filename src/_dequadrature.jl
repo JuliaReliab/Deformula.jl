@@ -7,21 +7,37 @@ struct Formula{T <: Real}
     phidash
 end
 
-const deformulaZeroToInf = Formula(
-    (-6.8, 6.8),
-    t -> exp(pi * sinh(t) / 2),
-    t -> pi * cosh(t) * exp(pi * sinh(t) / 2) / 2
+# (Float64 constant kept via constructor below for backward compatibility)
+"""
+    deformula_zero_to_inf(::Type{T}=Float64) where {T<:Real}
+
+Constructor for the semi-infinite range DE formula specialized to numeric type `T`.
+"""
+deformula_zero_to_inf(::Type{T}=Float64) where {T<:Real} = Formula{T}( 
+    (-T(6.8), T(6.8)),
+    t -> exp(T(pi) * sinh(t) / T(2)),
+    t -> T(pi) * cosh(t) * exp(T(pi) * sinh(t) / T(2)) / T(2)
 )
 
-const deformulaMinusOneToOne = Formula(
-    (-3.0, 3.0),
-    t -> tanh(pi * sinh(t) / 2),
+const deformulaZeroToInf = deformula_zero_to_inf(Float64)
+
+# (Float64 constant kept via constructor below for backward compatibility)
+"""
+    deformula_minus_one_to_one(::Type{T}=Float64) where {T<:Real}
+
+Constructor for the finite range [-1, 1] DE formula specialized to numeric type `T`.
+"""
+deformula_minus_one_to_one(::Type{T}=Float64) where {T<:Real} = Formula{T}(
+    (-T(3.0), T(3.0)),
+    t -> tanh(T(pi) * sinh(t) / T(2)),
     t -> begin
-        pisinh2 = pi * sinh(t) / 2
-        sech = 1 / cosh(pisinh2)
-        pi * cosh(t) * sech * sech / 2
+        pisinh2 = T(pi) * sinh(t) / T(2)
+        sech = one(T) / cosh(pisinh2)
+        T(pi) * cosh(t) * sech * sech / T(2)
     end
 )
+
+const deformulaMinusOneToOne = deformula_minus_one_to_one(Float64)
 
 # struct DeformulaResult{T <: Real}
 #     s::T
@@ -43,7 +59,7 @@ function _calcWeight!(data::Vector{Tuple{T,T,T}}, t::T, f, phi, phidash; abstol:
 end
 
 """
-_deint(f, formula; reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 16)
+    _deint(f, formula; reltol::T = 1.0e-8, abstol::T = eps(T), d = 8, maxiter = 12)
 
 Compute the numerical integration for f with double exponential formula.
 
@@ -65,14 +81,20 @@ Return value (tuple):
 """
 
 function _deint(f, formula::Formula{T};
-        reltol::T = 1.0e-9, abstol::T = eps(T), d = 8, maxiter = 16) where {T <: Real}
+        reltol::T = 1.0e-9, abstol::T = eps(T), d = 8, maxiter = 12) where {T <: Real}
     local lower::T = formula.range[1]
     local upper::T = formula.range[2]
     local h::T = (upper - lower) / d
 
-    # Pre-allocate with estimated size to reduce reallocations
+    # Pre-allocate with an upper-bound estimate to reduce reallocations
     data = Vector{Tuple{T,T,T}}()
-    sizehint!(data, d * maxiter)
+    if maxiter >= 1
+        # Total appended points ≈ (d+1) + d * (1 + 2 + ... + 2^(maxiter-2)) = (d+1) + d * (2^(maxiter-1) - 1)
+        local expected_len::Int = d + 1 + d * ((1 << (maxiter - 1)) - 1)
+        sizehint!(data, expected_len)
+    else
+        sizehint!(data, d + 1)
+    end
     
     for t = LinRange(lower, upper, d+1)
         _calcWeight!(data, t, f, formula.phi, formula.phidash, abstol=abstol)
@@ -131,8 +153,40 @@ function _deint(f, formula::Formula{T};
 end
 
 """
+    deint(f, lower::T, upper::T; reltol::T=T(1.0e-9), abstol::T=eps(T), d=8, maxiter=12) where {T<:Real}
+
+Arbitrary-precision/generalized version of `deint`. Works for `BigFloat` and other `T<:Real`.
+"""
+function deint(f, lower::T, upper::T;
+    reltol::T=T(1.0e-9), abstol::T=eps(T), d=8, maxiter=12) where {T<:Real}
+
+    if isinf(upper) && upper > zero(T)
+        if lower == zero(T)
+            return _deint(f, deformula_zero_to_inf(T), reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
+        else
+            result = _deint(deformula_zero_to_inf(T), reltol=reltol, abstol=abstol, d=d, maxiter=maxiter) do x
+                f(x + lower)
+            end
+            x = result.x .+ lower
+            return (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
+        end
+    else
+        if lower == -one(T) && upper == one(T)
+            return _deint(f, deformula_minus_one_to_one(T), reltol=reltol, abstol=abstol, d=d, maxiter=maxiter)
+        else
+            d_half = (upper - lower) / T(2)
+            result = _deint(deformula_minus_one_to_one(T), reltol=reltol, abstol=abstol, d=d, maxiter=maxiter) do x
+                f(d_half * (x + one(T)) + lower) * d_half
+            end
+            x = @. d_half * (result.x + one(T)) + lower
+            return (s=result.s, t=result.t, x=x, w=result.w, h=result.h)
+        end
+    end
+
+end
+"""
     deint(f, lower::Float64, upper::Float64;
-        reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=16)
+        reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=12)
 
 Compute the numerical integration for `f` on [`lower`, `upper`] with double exponential formula.
 
@@ -145,7 +199,7 @@ Compute the numerical integration for `f` on [`lower`, `upper`] with double expo
   - `reltol::Float64=1.0e-8`: tolerance for relative errors
   - `abstol::Float64=eps(Float64)`: tolerance for absolute errors
   - `d=8`: the initial number of divides
-  - `maxiter=16`: the maximum number of iterations to increase the number of divides twice.
+  - `maxiter=12`: the maximum number of iterations to increase the number of divides twice.
 
 # Return values
   - `s`: the value of integration
@@ -167,7 +221,7 @@ end
 ```
 """
 function deint(f, lower::Float64, upper::Float64;
-    reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=16)::NamedTuple{(:s, :t, :x, :w, :h), Tuple{Float64, Vector{Float64}, Vector{Float64}, Vector{Float64}, Float64}}
+    reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=12)::NamedTuple{(:s, :t, :x, :w, :h), Tuple{Float64, Vector{Float64}, Vector{Float64}, Vector{Float64}, Float64}}
     
     if isinf(upper) && upper > 0
         # Handle [0, Inf) or [lower, Inf) cases
