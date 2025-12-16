@@ -153,9 +153,21 @@ function _deint(f, formula::Formula{T};
 end
 
 """
-    deint(f, lower::T, upper::T; reltol::T=T(1.0e-9), abstol::T=eps(T), d=8, maxiter=12) where {T<:Real}
+    deint(f, lower, upper; ...)
 
-Arbitrary-precision/generalized version of `deint`. Works for `BigFloat` and other `T<:Real`.
+Apply the double exponential (tanh-sinh) procedure to `f` on [`lower`, `upper`].
+
+This function returns not only the integral value, but also the nodes and
+weights used in the computation. It is intended for research and analysis
+purposes rather than as a black-box integrator.
+
+Returns a named tuple `(s, t, x, w, h)` with the integral estimate, nodes in the
+transformed domain, mapped points, weights, and scale factor:
+- `s`: integral estimate
+- `t`: nodes in the transformed domain
+- `x`: mapped nodes in the original domain
+- `w`: unscaled weights corresponding to `x`
+- `h`: scale factor applied to weights
 """
 function deint(f, lower::T, upper::T;
     reltol::T=T(1.0e-9), abstol::T=eps(T), d=8, maxiter=12) where {T<:Real}
@@ -185,40 +197,21 @@ function deint(f, lower::T, upper::T;
 
 end
 """
-    deint(f, lower::Float64, upper::Float64;
-        reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=12)
+        deint(f, lower, upper; ...)
 
-Compute the numerical integration for `f` on [`lower`, `upper`] with double exponential formula.
+Apply the double exponential (tanh-sinh) procedure to `f` on [`lower`, `upper`].
 
-    int f(x) dx = h * sum w_i
+This function returns not only the integral value, but also the nodes and
+weights used in the computation. It is intended for research and analysis
+purposes rather than as a black-box integrator.
 
-# Arguments
-  - `f`: integrand function
-  - `lower::Float64`: lower value of range. This should be finite.
-  - `upper::Float64`: upper value of range. This is allowed to take infinite.
-  - `reltol::Float64=1.0e-8`: tolerance for relative errors
-  - `abstol::Float64=eps(Float64)`: tolerance for absolute errors
-  - `d=8`: the initial number of divides
-  - `maxiter=12`: the maximum number of iterations to increase the number of divides twice.
-
-# Return values
-  - `s`: the value of integration
-  - `t`: a sequence for divides on the transformed domain
-  - `x`: a sequence for divides; t_i
-  - `w`: a sequence of weights (unscaled); w_i
-  - `h`: a scale parameter for w_i; h
-
-# Examples
-```julia-repl
-julia> f(x) = exp(x);
-julia> result = deint(f, 0.0, 1.0);
-```
-
-```julia-repl
-julia> result = deint(0.0, Inf64) do x
-    2.0*exp(-2.0*x)
-end
-```
+Returns a named tuple `(s, t, x, w, h)` with the integral estimate, nodes in the
+transformed domain, mapped points, weights, and scale factor:
+- `s`: integral estimate
+- `t`: nodes in the transformed domain
+- `x`: mapped nodes in the original domain
+- `w`: unscaled weights corresponding to `x`
+- `h`: scale factor applied to weights
 """
 function deint(f, lower::Float64, upper::Float64;
     reltol::Float64=1.0e-8, abstol::Float64=eps(Float64), d=8, maxiter=12)::NamedTuple{(:s, :t, :x, :w, :h), Tuple{Float64, Vector{Float64}, Vector{Float64}, Vector{Float64}, Float64}}
